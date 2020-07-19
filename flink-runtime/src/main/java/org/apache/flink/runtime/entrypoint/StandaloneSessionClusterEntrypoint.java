@@ -42,14 +42,19 @@ public class StandaloneSessionClusterEntrypoint extends SessionClusterEntrypoint
 
 	public static void main(String[] args) {
 		// startup checks and logging
+		//打印有关环境的信息
 		EnvironmentInformation.logEnvironmentInfo(LOG, StandaloneSessionClusterEntrypoint.class.getSimpleName(), args);
+		//注册一些信号处理
 		SignalHandler.register(LOG);
+		//安装安全关闭的钩子
 		JvmShutdownSafeguard.installAsShutdownHook(LOG);
 
 		EntrypointClusterConfiguration entrypointClusterConfiguration = null;
 		final CommandLineParser<EntrypointClusterConfiguration> commandLineParser = new CommandLineParser<>(new EntrypointClusterConfigurationParserFactory());
 
 		try {
+			//对传入的参数进行解析
+			//内部通过EntrypointClusterConfigurationParserFactory解析配置文件，返回EntrypointClusterConfiguration为ClusterConfiguration的子类
 			entrypointClusterConfiguration = commandLineParser.parse(args);
 		} catch (FlinkParseException e) {
 			LOG.error("Could not parse command line arguments {}.", args, e);
@@ -59,8 +64,11 @@ public class StandaloneSessionClusterEntrypoint extends SessionClusterEntrypoint
 
 		Configuration configuration = loadConfiguration(entrypointClusterConfiguration);
 
+		//创建了StandaloneSessionClusterEntrypoint
 		StandaloneSessionClusterEntrypoint entrypoint = new StandaloneSessionClusterEntrypoint(configuration);
 
+		//启动集群的entrypoint。
+		//这个方法接受的是父类ClusterEntrypoint，可想而知其他几种启动方式也是通过这个方法。
 		ClusterEntrypoint.runClusterEntrypoint(entrypoint);
 	}
 }

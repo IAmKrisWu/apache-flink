@@ -148,7 +148,21 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 	protected ClusterEntrypoint(Configuration configuration) {
 		this.configuration = generateClusterConfiguration(configuration);
 		this.terminationFuture = new CompletableFuture<>();
+		/**
+		 所谓 shutdown hook 就是已经初始化但尚未开始执行的线程对象。在Runtime 注册后，如果JVM要停止前，
+		 这些 shutdown hook 便开始执行。也就是在你的程序结束前，执行一些清理工作，尤其是没有用户界面的程序。
+		 这些 shutdown hook 都是些线程对象，因此，你的清理工作要写在 run() 里。
 
+		 这里钩子的作用就是执行所有service的关闭方法。
+
+		 以下几种场景会被调用：
+		 1.程序正常退出
+		 2.使用System.exit()
+		 3.终端使用Ctrl+C触发的中断
+		 4.系统关闭
+		 5.OutOfMemory宕机
+		 6.使用Kill pid命令干掉进程（注：在使用kill -9 pid时，是不会被调用的）
+		 */
 		shutDownHook = ShutdownHookUtil.addShutdownHook(this::cleanupDirectories, getClass().getSimpleName(), LOG);
 	}
 
@@ -488,11 +502,13 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 	}
 
 	protected static Configuration loadConfiguration(EntrypointClusterConfiguration entrypointClusterConfiguration) {
+		//获取前面XXXParserFactory解析得到的dynamicProperties(Properties)转化为Configuration
 		final Configuration dynamicProperties = ConfigurationUtils.createConfiguration(entrypointClusterConfiguration.getDynamicProperties());
+		//将配置文件(通过传入配置文件地址得到flink-conf.yaml配置信息)和动态配置的内容结合，返回一个新的Configuration
 		final Configuration configuration = GlobalConfiguration.loadConfiguration(entrypointClusterConfiguration.getConfigDir(), dynamicProperties);
 
 		final int restPort = entrypointClusterConfiguration.getRestPort();
-
+		//设置Rest Port端口
 		if (restPort >= 0) {
 			configuration.setInteger(RestOptions.PORT, restPort);
 		}
@@ -514,6 +530,8 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 
 		final String clusterEntrypointName = clusterEntrypoint.getClass().getSimpleName();
 		try {
+			//原先这个方法是直接在上层ClusterEntrypoint实现类的main方法最后一步调用。
+			//新版这里做了优化
 			clusterEntrypoint.startCluster();
 		} catch (ClusterEntrypointException e) {
 			LOG.error(String.format("Could not start cluster entrypoint %s.", clusterEntrypointName), e);
